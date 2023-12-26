@@ -137,17 +137,18 @@ class labor_market():
     def add_giver(self, prod, skill, salary):
         self.job_givers.add((skill, salary, prod.ID))
 
-    def run_day(self): # run the whole hiring cycle, FOR NOW EXTREMELY INEFFICIENT, IDK HOW TO IMPROVE IT LOL
+    def run_day(self): # run the whole hiring cycle, FOR NOW EXTREMELY INEFFICIENT O(n^2), IDK HOW TO IMPROVE IT LOL
         self.census_.file.write('Started the day of trades (labor)!\n')
         self.census_.file.write('Job takers (skill, salary, ID)\n')
-        self.census_.file.write(str(self.job_takers))
+        self.census_.file.write(str(self.job_takers) + '\n')
         self.census_.file.write('Job givers\n')
-        self.census_.file.write(str(self.job_givers))
+        self.census_.file.write(str(self.job_givers) + '\n')
         for job_taker in self.job_takers:
             for job_giver in self.job_givers:
                 if job_taker[0] >= job_giver[0] and job_taker[1] <= job_giver[1]: # skillful enough and not too expensive -> hire
                     self.job_givers.remove(job_giver)
-                    salary = job_taker[1]
+                    salary = (job_taker[1] + job_giver[1]) / 2
+                    #salary = job_taker[1]
                     employee = self.consumers[job_taker[2]]
                     employer = self.producers[job_giver[2]]
                     if employee.job is not None:
@@ -203,7 +204,7 @@ class consumer():
     
     def calc_coins_for_util(self):
         # actual to ideal spending ratio
-        ratio = self.spent_today / (max(self.dividends + self.job[1], self.cash / 10) if self.job is not None else self.cash / 10)
+        ratio = self.spent_today / (min(self.job[1], self.cash / 10) if self.job is not None else self.cash / 20)
         # make it a bit more conservative (tends to the mean)
         ratio = ratio * 1/2 + 1/2
         # big ratio -> we should have smaller util value ()
@@ -219,6 +220,8 @@ class consumer():
                 price_bet = min(grads[good_ID] * self.coins_for_util, self.cash-30)
                 if price_bet < 0:
                     continue
+                if self.spent_today + price_bet > (2 * self.job[1] if self.job is not None else self.cash / 10):
+                    continue
                 ans.append((good_ID, price_bet, 1))
         return ans
 
@@ -233,8 +236,8 @@ class consumer():
     def request_job_offer(self): # RETURN THE DESIRED SALARY, 0 if not interested
         # THIS IS A GAME-PLAY FUNCTION
         # baseline -> excellent
-        if self.job is not None and r() > 0.2: # if already employed, do not search for a new job with 80% probability
-            return 0
+        if self.job is not None and self.salary_expectation / self.job[1] < 1.1: # if already employed, search for the job if your salary expectation
+            return 0                            # is significantly higher than your current job salary
         return self.salary_expectation
 
     def calc_salary_expectation(self):
@@ -243,12 +246,12 @@ class consumer():
         if self.job is None: # unemployed -> reduce your expectations
             if update_coef < 1: # our expectation is indeed too high
                 self.salary_expectation *= update_coef * (0.95 + 0.1 * r())
-            else: # beggers are no choosers
-                self.salary_expectation *= (0.85 + 0.1 * r())
+            else: # beggers are no choosers, so reduce your expectations anyway
+                self.salary_expectation *= (0.65 + 0.1 * r())
         else: # employed -> raise your expectations
-            if update_coef < 1: # you are lucky! You are earning more than the market
+            if update_coef < 1: # you are lucky! You are earning more than the market, so salary expectation barely changes
                 self.salary_expectation *= (0.95 + 0.1 * r())
-            else: # damn, you are good
+            else: # you are supposed to earn more according to the market survey!
                 self.salary_expectation *= update_coef * (0.95 + 0.1 * r())
 
     def get_fired(self):
@@ -370,7 +373,7 @@ class producer():
             price = old_prices[good_ID][0] # this is market price
             must_have = front_prod * need
             must_have_after_depr = must_have
-            quant = int(must_have_after_depr - self.stored_goods[good_ID] + 1)
+            quant = int(must_have_after_depr - self.stored_goods[good_ID] + 1 - 0.001)
             if quant <= 0:
                 continue
             needed_quant[good_ID] = (quant, price)
@@ -380,7 +383,7 @@ class producer():
         for good_ID, (quant, price) in needed_quant.items():
             rest_total = total_price - quant * price
             rest_for_comp = max(total_revenue - rest_total, 10)
-            rest_for_comp *= 0.9 + 0.1 * r()
+            rest_for_comp *= 0.9 + 0.2 * r()
             upd_price = rest_for_comp / quant
             ans.append((good_ID, upd_price, quant))
         return ans
@@ -398,8 +401,13 @@ class producer():
         # baseline -> excellent
         price = self.price_exp
         quant = int(self.stored_goods[self.good_ID])
+        if quant > self.productivity(self.total_skill):
+            quant = int((self.stored_goods[self.good_ID] + self.productivity(self.total_skill)) / 2)
         self.units_bet = quant
-        return [(self.good_ID, price, quant)] if quant > 0 else []
+        fifth = quant // 5
+        mid = quant - fifth * 4
+        return [(self.good_ID, price * 0.96, fifth), (self.good_ID, price * 0.98, fifth), (self.good_ID, price, mid),
+                (self.good_ID, price * 1.02, fifth), (self.good_ID, price * 1.04, fifth)] if quant > 0 else []
 
     def verify_good_seller(self, offers): # verify the offer (seller side)
         plan_to_sell = {}
@@ -422,8 +430,14 @@ class producer():
         # actual to ideal spending ratio
         ratio = (self.units_sold + 1) / (self.units_bet + 1)
         # make it a bit more conservative (tends to the mean)
-        ratio = ratio * 1/2 + 1/2 + (0.1 if ratio > 0.95 else 0) + (0.2 if self.units_bet == 0 else 0)
-        # big ratio -> we should have smaller price, small ratio -> bigger price
+        ratio = ratio * 1/5 + 4/5
+        if ratio > 0.95 and self.units_sold != 0: # sold out -> increase price
+            ratio += 0.1
+        if self.units_bet == 0: # we did not even produce anything -> increase price expectation to boost production incentive
+            ratio += 0.2
+        if self.units_sold == 0 and self.units_bet != 0: # we did not sell anything -> drop prices
+            ratio -= 0.1
+        # big ratio -> bigger price, small ratio -> smaller price
         self.price_exp *= (0.95 + 0.1 * r()) * ratio
 
     def staff_strategy(self): # fire some employees, request employees on the labor market; return [(skill, salary), ...]
@@ -434,8 +448,6 @@ class producer():
         old_prices = self.census_.stats['goods_market_prices'][self.census_.time-1]
         gross = 0 # the cost to produce one unit
         for good_ID, (avg, _, _, _, _) in old_prices.items():
-            if avg == -1:
-                avg = r() * 30 + 30
             if good_ID == self.good_ID:
                 gross += avg
             elif good_ID in self.components:
@@ -444,15 +456,16 @@ class producer():
         for emp_ID, (emp, salary) in list(self.employees.items()):
             prod_drop = old_prod - self.productivity(self.total_skill - emp.skill)
             marginal_value = prod_drop * gross # how much this employee contributes
-            if marginal_value > salary: # we lose money on this employee! Fire them!
+            if marginal_value < salary: # we lose money on this employee! Fire them!
                 self.fire_employee(emp_ID)
         # hire new employees
         for i in range(1, 10):
             new_prod = self.productivity(self.total_skill + i)
             prod_change = new_prod - old_prod
-            coef = 0.8 + r() * 0.2
+            coef = 0.95 + r() * 0.1
             salary = prod_change * gross * coef
-            ans.append((i, salary))
+            if salary > 0:
+                ans.append((i, salary))
         return ans
 
     def hire_employee(self, employee, salary):
@@ -477,7 +490,7 @@ class producer():
     
     def dividend_policy(self):
         income = self.revenue - self.fixed_cost - self.salaries_paid - self.asset_spending
-        return max(income / 10, 0)
+        return max(income / 2, 0)
 
     def pay_dividends(self):
         div = self.dividend_policy()
@@ -503,6 +516,13 @@ class producer():
             'units sold': self.units_sold,
             'time': self.census_.time
         }
+    
+    def bankrupt(self):
+        if self.cash < 0:
+            for emp_ID in list(self.employees.keys()):
+                self.fire_employee(emp_ID)
+            return True
+        return False
 
 
 class census(): # meant to easily calculate any metrics for the market (to start with, salary expectation)
@@ -594,6 +614,8 @@ class simulation():
         self.logging()
         # step seven - goods depreciation
         self.depreciate()
+        # step eight - bankruptcy
+        self.bankruptcy()
     
     def reset_day(self, time): # step one
         for cons_ID, cons in self.consumers.items():
@@ -648,4 +670,14 @@ class simulation():
         for cons_ID, cons in self.consumers.items():
             cons.depreciate_goods()
         for prod_ID, prod in self.producers.items():
-            prod.depreciate_goods()
+            #prod.depreciate_goods()
+            pass
+    
+    def bankruptcy(self): # step eight
+        bankrupts = []
+        for prod_ID, prod in self.producers.items():
+            if prod.bankrupt():
+                bankrupts.append(prod_ID)
+        for prod_ID in bankrupts:
+            self.producers.pop(prod_ID)
+            

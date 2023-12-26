@@ -36,33 +36,43 @@ def create_agents(): # this function creates consumers, producers, goods, market
     # AFTER THESE PREDICTIONS ARE ACHIEVED AND VERIFIED, THE TESTING OF THE DEMO SIMULATION IS DONE!
 
     # initialize consumers, producers, and goods
-    goods = {'apple' : good('apple', lambda x: x*0.5), 'art' : good('art', lambda x: x)}
+    goods = {'apple' : good('apple', lambda x: x*0.5), 'art' : good('art', lambda x: x), 'pear': good('pear', lambda x: x*0.5)}
 
     consumers = {}
 
-    for i in range(5): # people who do not love art
+    for i in range(30): # people who do not love art
         ID = i
         coef1, coef2 = 0.9 + 0.2*r(), 0
-        bob = consumer(ID, lambda x: x['apple'] * coef1 + (x['art']**0.5) * coef2, r() * 1000, 1 + r() * 9, goods)
+        coef3 = 0.9 + 0.2*r()
+        bob = consumer(ID, lambda x: x['apple'] * coef1 + (x['art']**0.5) * coef2 + x['pear']*coef3, r() * 1000, 1 + r() * 9, goods)
         consumers[ID] = bob
-    for i in range(5): # people who love art
-        ID = i+5
+    for i in range(30): # people who love art
+        ID = i+30
         coef1, coef2 = 0.9 + 0.2*r(), 4 + 0.1 * r()
-        bob = consumer(ID, lambda x: x['apple'] * coef1 + (x['art']**0.5) * coef2, r() * 1000, 1 + r() * 9, goods)
+        coef3 = 0.9 + 0.2*r()
+        bob = consumer(ID, lambda x: x['apple'] * coef1 + (x['art']**0.5) * coef2 + x['pear']*coef3, r() * 1000, 1 + r() * 9, goods)
         consumers[ID] = bob
 
     producers = {}
 
-    for i in range(2):
+    for i in range(5):
         coef = r()
         # apple producing companies
-        tesla = producer(i, 10000 * r(), 'apple', 0.0, lambda x: (4 + coef) * x**0.5, {}, bob, 10, goods) # made last consumer to be the owner of all companies
+        owner = consumers[int(r() * 60)]
+        tesla = producer(i, 10000 * r(), 'apple', 0.0, lambda x: (4 + coef) * x**0.5, {}, owner, 10, goods)
         producers[i] = tesla
-    for i in range(2):
+    for i in range(5):
         coef = r()
         # art producing companies need less labor to produce a unit, BUT they have a needed input: one apple
-        tesla = producer(2+i, 10000 * r(), 'art', 0.0, lambda x: (7 + coef) * x**0.5, {'apple': 1.0}, bob, 10, goods)
-        producers[2+i] = tesla
+        owner = consumers[int(r() * 60)]
+        tesla = producer(5+i, 10000 * r(), 'art', 0.0, lambda x: (7 + coef) * x**0.5, {'apple': 1.0}, owner, 10, goods)
+        producers[5+i] = tesla
+    for i in range(5):
+        coef = r()
+        owner = consumers[int(r() * 60)]
+        # art producing companies need less labor to produce a unit, BUT they have a needed input: one apple
+        tesla = producer(10+i, 10000 * r(), 'pear', 0.0, lambda x: (4 + coef) * x**0.5, {}, owner, 10, goods)
+        producers[10+i] = tesla
 
     # you typically do not want to change these lines
     goods_market_ = goods_market(goods, consumers, producers)
@@ -74,7 +84,7 @@ def create_agents(): # this function creates consumers, producers, goods, market
 if __name__ == '__main__':
     consumers, producers, goods, goods_market_, labor_market_, census_ = create_agents()
     sim = simulation(consumers, producers, goods, goods_market_, labor_market_, census_)
-    sim.run(50)
+    sim.run(100)
 
 
 # TO DO
