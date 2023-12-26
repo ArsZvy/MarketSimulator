@@ -7,7 +7,7 @@ def create_agents(): # this function creates consumers, producers, goods, market
 
     # CURRENT SIMULATION SET UP
     # There are only two goods in the world: apples and art
-    # Apples are completely consumed each round, whereas a piece of art is permenant (look at depreciation functions)
+    # Apples are completely consumed each round, whereas a piece of art is permenant (look at depreciation functions for the reference)
     # There are two groups of people: people who do not love art, and people who enjoy art
     # Their utility of apples is similar, however the utility of art for the first group is zero, whereas for the second one it is a scaled square root function
     # The typical change in utility is:
@@ -30,7 +30,7 @@ def create_agents(): # this function creates consumers, producers, goods, market
     # The income of all the companies would fall to almost zero, so the revenue from sales would equate the salaries
     # From some math derivations, the equilibrium would be:
     # 60 apples produced, 0 arts produced per round
-    # about 3000 in a round circulation
+    # about 3000 coins in a round monetary circulation
     # apple price is about 50, average salary for each skill point is 50
 
     # AFTER THESE PREDICTIONS ARE ACHIEVED AND VERIFIED, THE TESTING OF THE DEMO SIMULATION IS DONE!
@@ -78,6 +78,6 @@ if __name__ == '__main__':
 
 
 # TO DO
-# DEBUG THE DEMO!
+# DEBUG THE DEMO! IT ALMOST WORKS!
 # Maybe move depreciation to the last phase?
 # Maybe add one more phase of "reflection"?

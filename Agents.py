@@ -84,8 +84,6 @@ class goods_market():
                 all_set.add((cur_ID, cur_type))
 
     def calc_stat(self): # calculate (avg_price, std, min_price, max_price, items_sold) for each good_ID
-        # min price -> the best bet of a buyer that did not satisfy sellers
-        # max price -> the best bet of a seller that did not satisfy buyers
         ans = {}
         for good_ID, trans_lst in self.trans_today.items():
             tot_sum, tot_num = 0, 0
@@ -102,6 +100,8 @@ class goods_market():
             std = (tot_sqr / (tot_num - 1)) ** 0.5 if tot_num > 1 else -1
             if min_price == 10**9:
                 min_price = -1
+            if avg == -1:
+                avg = self.trans_arch[self.census_.time-1][good_ID][0]
             ans[good_ID] = (avg, std, min_price, max_price, tot_num)
         self.trans_arch[self.census_.time] = ans
         
@@ -209,7 +209,6 @@ class consumer():
         # big ratio -> we should have smaller util value ()
         self.coins_for_util *= (0.95 + 0.1 * r()) / ratio
 
-
     def request_good_offer(self): # RETURN THE MAX PRICES FOR THE GOODS WE ARE READY TO PURCHASE: [(good_ID, price, quant), ...] (decreasing preferance)
         # THIS IS A GAME-PLAY FUNCTION
         # baseline -> excellent
@@ -218,6 +217,8 @@ class consumer():
         for good_ID in grads:
             if grads[good_ID] > 0:
                 price_bet = min(grads[good_ID] * self.coins_for_util, self.cash-30)
+                if price_bet < 0:
+                    continue
                 ans.append((good_ID, price_bet, 1))
         return ans
 
@@ -301,6 +302,7 @@ class producer():
         self.total_skill = 1
         self.revenue = 0
         self.units_sold = 0
+        self.units_bet = 0
         self.salaries_paid = 0
         self.dividends_paid = 0
         self.asset_spending = 0
@@ -357,28 +359,30 @@ class producer():
 
     def request_good_offer(self): # refer to consumer class function
         # THIS IS A GAME-PLAY FUNCTION
-        # baseline -> good I DO NOT LIKE THIS METHOD
+        # baseline -> excellent
         ans = []
         prod_price = self.price_exp
         front_prod = self.productivity(self.total_skill)
         old_prices = self.census_.stats['goods_market_prices'][self.census_.time-1]
+        needed_quant = {}
+        total_price = 0
         for good_ID, need in self.components.items():
             price = old_prices[good_ID][0] # this is market price
-            if old_prices[good_ID][4] == 0:
-                price = 100 * r() + 50
-            avg_price = (prod_price + price) / 2 # let's take something in between
-            # we need to modify this price to match our "desired" price of the compoonent after taking into account other components and salaries
-
             must_have = front_prod * need
             must_have_after_depr = must_have
-            while self.goods[good_ID].depreciate(must_have_after_depr) < must_have:
-                must_have_after_depr += 1
             quant = int(must_have_after_depr - self.stored_goods[good_ID] + 1)
             if quant <= 0:
                 continue
-            max_quant = int(self.cash / price)
-            quant = min(max_quant, quant)
-            ans.append((good_ID, price, quant))
+            needed_quant[good_ID] = (quant, price)
+            total_price += quant * price
+        total_price += self.total_salary
+        total_revenue = prod_price * front_prod
+        for good_ID, (quant, price) in needed_quant.items():
+            rest_total = total_price - quant * price
+            rest_for_comp = max(total_revenue - rest_total, 10)
+            rest_for_comp *= 0.9 + 0.1 * r()
+            upd_price = rest_for_comp / quant
+            ans.append((good_ID, upd_price, quant))
         return ans
 
     def verify_good_buyer(self, offers): # verify the offer (buyer side)
@@ -393,7 +397,8 @@ class producer():
         # THIS IS A GAME-PLAY FUNCTION
         # baseline -> excellent
         price = self.price_exp
-        quant = self.stored_goods[self.good_ID]
+        quant = int(self.stored_goods[self.good_ID])
+        self.units_bet = quant
         return [(self.good_ID, price, quant)] if quant > 0 else []
 
     def verify_good_seller(self, offers): # verify the offer (seller side)
@@ -415,11 +420,11 @@ class producer():
     
     def calc_price_exp(self):
         # actual to ideal spending ratio
-        ratio = (self.units_sold+3) / self.productivity(self.total_skill)
+        ratio = (self.units_sold + 1) / (self.units_bet + 1)
         # make it a bit more conservative (tends to the mean)
-        ratio = ratio * 1/2 + 1/2
+        ratio = ratio * 1/2 + 1/2 + (0.1 if ratio > 0.95 else 0) + (0.2 if self.units_bet == 0 else 0)
         # big ratio -> we should have smaller price, small ratio -> bigger price
-        self.price_exp *= (0.95 + 0.1 * r()) / ratio
+        self.price_exp *= (0.95 + 0.1 * r()) * ratio
 
     def staff_strategy(self): # fire some employees, request employees on the labor market; return [(skill, salary), ...]
         # THIS IS A GAME-PLAY FUNCTION
@@ -577,18 +582,18 @@ class simulation():
     def run_cycle(self, time): # run one cycle of the simulation
         # step one - reset the day
         self.reset_day(time)
-        # step two - goods depreciation
-        self.depreciate()
-        # step three - produce goods and pay salary
+        # step two - produce goods and pay salary
         self.produce()
-        # step four - trade goods
+        # step three - trade goods
         self.trade_goods()
-        # step five - trade labor
+        # step four - trade labor
         self.trade_labor()
-        # step six - pay dividends and trade stocks (to be implemented)
+        # step five - pay dividends and trade stocks (to be implemented)
         self.trade_stocks()
-        # step seven - save logging
+        # step six - save logging
         self.logging()
+        # step seven - goods depreciation
+        self.depreciate()
     
     def reset_day(self, time): # step one
         for cons_ID, cons in self.consumers.items():
@@ -598,12 +603,6 @@ class simulation():
         self.l_market.reset_day()
         self.g_market.reset_day()
         self.census_.reset_day(time)
-    
-    def depreciate(self): # step two
-        for cons_ID, cons in self.consumers.items():
-            cons.depreciate_goods()
-        for prod_ID, prod in self.producers.items():
-            prod.depreciate_goods()
     
     def produce(self): # step three
         for prod_ID, prod in self.producers.items():
@@ -644,3 +643,9 @@ class simulation():
             self.df_cons = pd.concat([self.df_cons, pd.DataFrame.from_dict(cons.make_log(), orient='index').T])
         for prod_ID, prod in self.producers.items():
             self.df_prod = pd.concat([self.df_prod, pd.DataFrame.from_dict(prod.make_log(), orient='index').T])
+    
+    def depreciate(self): # step two
+        for cons_ID, cons in self.consumers.items():
+            cons.depreciate_goods()
+        for prod_ID, prod in self.producers.items():
+            prod.depreciate_goods()
