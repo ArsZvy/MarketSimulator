@@ -23,13 +23,18 @@ Census is the data center of the simulation: it stores references to other objec
 Simulation is a class that correctly sets up the simulation, sequentially runs all the steps, and then correctly wraps it up.
 
 ## Applications
-To be finished later.
+Possible applications of the project:
+1) Additional material for economic textbooks to illuminate economic concepts.
+2) An interactive tool for classroom or online course use.
+3) Hackathons focusing on implementing the best strategies, merging STEM and economics.
+4) A sanity check tool for macroeconomic decisions.
+5) Simulation of real-world scenarios to analyze past events.
 
 ## Project timeline
 The start of the project - December 19th
 
-### Milestone 1 -> Draft version achieved (Release ETA - December 28th)
-The simulation includes consumers, producers, the goods market, and the labor market. Consumers and producers follow built-in sub-optimal greedy strategies in choosing prices and salaries. The output is stored in three CSV tables, which summarize i) consumers, ii) producers, and iii) the goods market evolving over time. One application (the 'apples vs. art' simulation) is attached and visualized.
+### Milestone 1 -> Released December 27th
+The simulation includes consumers, producers, the goods market, and the labor market. Consumers and producers follow built-in sub-optimal greedy strategies in choosing prices and salaries. The output is stored in three CSV tables, which summarize i) consumers, ii) producers, and iii) the goods market evolving over time. One application (the 'apples vs art' simulation) is attached and visualized.
 
 ### Milestone 2 -> ETA - January 10th
 Real estate and stock exchange markets are added to the simulation. Complex market statistics (such as total surplus or elasticity) are added to the output. Consumers' and producers' strategies are improved and diversified (so different agents might follow different strategies). Multiple applications are attached and visualized.
