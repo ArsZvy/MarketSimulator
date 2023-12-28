@@ -6,73 +6,62 @@ def create_agents(): # this function creates consumers, producers, goods, market
     # THIS function should be adjusted for different simulations
 
     # CURRENT SIMULATION SET UP
-    # There are only two goods in the world: apples and art
-    # Apples are completely consumed each round, whereas a piece of art is permenant (look at depreciation functions for the reference)
+    # There are only three goods in the world: apples, pears, and art
+    # Apples and pears are completely consumed each round, whereas a piece of art is permenant
     # There are two groups of people: people who do not love art, and people who enjoy art
-    # Their utility of apples is similar, however the utility of art for the first group is zero, whereas for the second one it is a scaled square root function
+    # Their utility of apples and pears are similar
+    # However the utility of art for the first group is zero, whereas for the second one it is a scaled square root function
     # The typical change in utility is:
-    # You consume one apple -> increase by 1 util
-    # You buy one piece of art -> increase by 2.5 utils, then by 1.5 utils, then by 1.0 util and so on (diminishing value)
-    # There are two apple producing compnaies and two art producing ones
-    # Productivity function of apple companies increase like this:
+    # You consume one apple / pear -> increase by 1 util
+    # You consume one piece of art -> increase by 3 utils, then by 1.5 utils, then by 1.0 util and so on (diminishing value)
+    # There are ten companies producing each good, so we get a sustainable market
+    # Productivity function of apple / pear companies increase like this:
     # 0 people -> 4.5 apples, 1 people -> 11 apples, 2 people -> 15.5 apples and so on (diminishing value of labor)
     # For art companies (also, one apple needed to produce each art):
     # 0 people -> 7.5 arts, 1 people -> 18.5 arts, 2 people -> 26 arts
 
-    # THE HYPOTHESIS OF THE SIMULATION
-    # The price of apple would stabilize around some value
-    # The price of art would initially rise and stay high for a couple of rounds and then would drop almost to zero 
-    # (as people would get saturated with art as it does not depreciate)
-    # Consumers would initially buy both apples (everyone) and art (the art-lovers), 
-    # but then they would stop buying art at all (saturation) and would switch to apples completely
-    # Initially, people would be employed by both apple and art producers
-    # Later, art producers would fire everyone, and apple producers would accumulate all the labor work force
-    # The income of all the companies would fall to almost zero, so the revenue from sales would equate the salaries
-    # From some math derivations, the equilibrium would be:
-    # 60 apples produced, 0 arts produced per round
-    # about 3000 coins in a round monetary circulation
-    # apple price is about 50, average salary for each skill point is 50
-
-    # AFTER THESE PREDICTIONS ARE ACHIEVED AND VERIFIED, THE TESTING OF THE DEMO SIMULATION IS DONE!
-
     # initialize consumers, producers, and goods
-    goods = {'apple' : good('apple', lambda x: x*0.5), 'art' : good('art', lambda x: x), 'pear': good('pear', lambda x: x*0.5)}
+    # apples and pears are completely consumed every round and slightly rot, whereas art stays permanent
+    goods = {'apple' : good('apple', lambda x: x*0.95, lambda x: (x, 0)), 
+             'art' : good('art', lambda x: x, lambda x: (x, x)), 
+             'pear': good('pear', lambda x: x*0.9, lambda x: (x, 0))}
 
     consumers = {}
 
-    for i in range(30): # people who do not love art
+    for i in range(50): # people who do not love art
         ID = i
-        coef1, coef2 = 0.9 + 0.2*r(), 0
-        coef3 = 0.9 + 0.2*r()
-        bob = consumer(ID, lambda x: x['apple'] * coef1 + (x['art']**0.5) * coef2 + x['pear']*coef3, r() * 1000, 1 + r() * 9, goods)
+        coef1, coef2, coef3 = 1 + 0.1*r(), 0, 1 + 0.1*r()
+        bob = consumer(ID, lambda x: x['apple']*coef1 + (x['art']**0.5)*coef2 + x['pear']*coef3, 1000 + r() * 500, 1 + r() * 9, goods)
         consumers[ID] = bob
-    for i in range(30): # people who love art
-        ID = i+30
-        coef1, coef2 = 0.9 + 0.2*r(), 4 + 0.1 * r()
-        coef3 = 0.9 + 0.2*r()
-        bob = consumer(ID, lambda x: x['apple'] * coef1 + (x['art']**0.5) * coef2 + x['pear']*coef3, r() * 1000, 1 + r() * 9, goods)
+    for i in range(50): # people who love art
+        ID = i+50
+        coef1, coef2, coef3 = 1 + 0.1*r(), 3 + 0.1 * r(), 1 + 0.1*r()
+        bob = consumer(ID, lambda x: x['apple']*coef1 + (x['art']**0.5)*coef2 + x['pear']*coef3, 1000 + r() * 500, 1 + r() * 9, goods)
         consumers[ID] = bob
 
     producers = {}
 
-    for i in range(5):
-        coef = r()
+    for i in range(10):
         # apple producing companies
-        owner = consumers[int(r() * 60)]
-        tesla = producer(i, 10000 * r(), 'apple', 0.0, lambda x: (4 + coef) * x**0.5, {}, owner, 10, goods)
-        producers[i] = tesla
-    for i in range(5):
         coef = r()
-        # art producing companies need less labor to produce a unit, BUT they have a needed input: one apple
+        ID = i
         owner = consumers[int(r() * 60)]
-        tesla = producer(5+i, 10000 * r(), 'art', 0.0, lambda x: (7 + coef) * x**0.5, {'apple': 1.0}, owner, 10, goods)
-        producers[5+i] = tesla
-    for i in range(5):
+        tesla = producer(ID, 5000 + 1000 * r(), 'apple', lambda x: (4 + coef) * x**0.5, {}, owner, 10, goods)
+        producers[ID] = tesla
+    for i in range(10):
+        # art producing companies need less labor to produce a unit, BUT they have a needed input: one apple
         coef = r()
+        ID = i + 10
         owner = consumers[int(r() * 60)]
-        # art producing companies need less labor to produce a unit, BUT they have a needed input: one apple
-        tesla = producer(10+i, 10000 * r(), 'pear', 0.0, lambda x: (4 + coef) * x**0.5, {}, owner, 10, goods)
-        producers[10+i] = tesla
+        tesla = producer(ID, 5000 + 1000 * r(), 'art', lambda x: (7 + coef) * x**0.5, {'apple': 1.0}, owner, 10, goods)
+        producers[ID] = tesla
+    for i in range(10):
+        # pear producing companies
+        coef = r()
+        ID = i + 20
+        owner = consumers[int(r() * 60)]
+        tesla = producer(ID, 5000 + 1000 * r(), 'pear', lambda x: (4 + coef) * x**0.5, {}, owner, 10, goods)
+        producers[ID] = tesla
 
     # you typically do not want to change these lines
     goods_market_ = goods_market(goods, consumers, producers)
@@ -85,9 +74,3 @@ if __name__ == '__main__':
     consumers, producers, goods, goods_market_, labor_market_, census_ = create_agents()
     sim = simulation(consumers, producers, goods, goods_market_, labor_market_, census_)
     sim.run(100)
-
-
-# TO DO
-# DEBUG THE DEMO! IT ALMOST WORKS!
-# Maybe move depreciation to the last phase?
-# Maybe add one more phase of "reflection"?

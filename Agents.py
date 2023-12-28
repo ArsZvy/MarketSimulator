@@ -1,14 +1,18 @@
 import pandas as pd
-from random import random as r, sample
+from random import random as r, sample, shuffle
 
 class good():
 
-    def __init__(self, ID, depreciation):
+    def __init__(self, ID, depreciation, consumption):
         self.ID = ID # ID of a good
         self.depreciation = depreciation # depreciates goods over time
+        self.consumption = consumption
 
     def depreciate(self, quant):
         return self.depreciation(quant)
+
+    def consume(self, quant):
+        return self.consumption(quant)
 
 
 class goods_market():
@@ -29,10 +33,10 @@ class goods_market():
         return '-' * 10 + '\nGoods market print out:\n' + '\n'.join([key + ':\n' + str(val) for key, val in self.make_log().items()]) + '\n' + '-' * 10
     
     def fake_data(self): # generate fake data for day 0
-        self.trans_arch[0] = {}
         for good_ID in self.goods:
             avg_price = 100 * r() + 10
             self.trans_today[good_ID] = [(5, avg_price)]
+        self.calc_stat()
 
     def reset_day(self): # reset all the day-to-day variables
         self.spread = {}
@@ -55,7 +59,8 @@ class goods_market():
         offers = buyer.request_good_offer()
         if not buyer.verify_good_buyer(offers):
             return False
-        for good_ID, buy_price, buy_quant in buyer.request_good_offer():
+        shuffle(offers)
+        for good_ID, buy_price, buy_quant in offers:
             sell_price, sell_quant, seller = self.spread[good_ID][0]
             self.census_.file.write(' '.join(map(str, ['Deal under consideration (good_ID, sell_price, sell_quant, buy_price, buy_quant):', 
                                                        good_ID, sell_price, sell_quant, buy_price, buy_quant]))+'\n')
@@ -104,9 +109,19 @@ class goods_market():
                 avg = self.trans_arch[self.census_.time-1][good_ID][0]
             ans[good_ID] = (avg, std, min_price, max_price, tot_num)
         self.trans_arch[self.census_.time] = ans
+    
+    def reflect_day(self):
+        self.calc_stat()
+    
+    def asset_market_evaluation(self, stored_goods): # market evaluation of someone's assets
+        total = 0
+        price_dict = self.trans_arch[self.census_.time]
+        for good_ID, num in stored_goods.items():
+            price = price_dict[good_ID][0] if price_dict[good_ID][4] != 0 else 0
+            total += price * num
+        return total
         
     def make_log(self): # logging process
-        self.calc_stat()
         stat = self.trans_arch[self.census_.time]
         return [{
             'good ID': good_ID,
@@ -148,7 +163,6 @@ class labor_market():
                 if job_taker[0] >= job_giver[0] and job_taker[1] <= job_giver[1]: # skillful enough and not too expensive -> hire
                     self.job_givers.remove(job_giver)
                     salary = (job_taker[1] + job_giver[1]) / 2
-                    #salary = job_taker[1]
                     employee = self.consumers[job_taker[2]]
                     employer = self.producers[job_giver[2]]
                     if employee.job is not None:
@@ -173,8 +187,9 @@ class consumer():
         self.job = None # the job position of the type optional (employer, salary)
         self.spent_today = 0
         self.dividends = 0
+        self.util_level = 0
         self.coins_for_util = 30 * (0.9 + 0.2*r()) # how much money are you willing to give for one util? Adjusted dynamically
-        self.salary_expectation = 150 * (0.9 + 0.2*r()) # what is your expected salary?
+        self.salary_expectation = 150 * (0.9 + 0.2*r()) # what is your expected salary? Adjusted dynamically
         self.census_ = None # census object is connected when census_ is initialized
     
     def __str__(self):
@@ -183,10 +198,7 @@ class consumer():
     def reset_day(self): # reset all the day-to-day variables
         self.spent_today = 0
         self.dividends = 0
-
-    def depreciate_goods(self):
-        for good_ID in self.stored_goods:
-            self.stored_goods[good_ID] = self.goods[good_ID].depreciate(self.stored_goods[good_ID])
+        self.util_level = 0
 
     def earn_salary(self):
         self.cash += self.job[1] if self.job is not None else 0
@@ -201,16 +213,8 @@ class consumer():
             util_new = self.util(new_pur_goods)
             ans[good_ID] = (util_new - util_old) / eps
         return ans
-    
-    def calc_coins_for_util(self):
-        # actual to ideal spending ratio
-        ratio = self.spent_today / (min(self.job[1], self.cash / 10) if self.job is not None else self.cash / 20)
-        # make it a bit more conservative (tends to the mean)
-        ratio = ratio * 1/2 + 1/2
-        # big ratio -> we should have smaller util value ()
-        self.coins_for_util *= (0.95 + 0.1 * r()) / ratio
 
-    def request_good_offer(self): # RETURN THE MAX PRICES FOR THE GOODS WE ARE READY TO PURCHASE: [(good_ID, price, quant), ...] (decreasing preferance)
+    def request_good_offer(self): # RETURN THE MAX PRICES FOR THE GOODS WE ARE READY TO PURCHASE: [(good_ID, price, quant), ...]
         # THIS IS A GAME-PLAY FUNCTION
         # baseline -> excellent
         grads = self.util_grad()
@@ -220,7 +224,7 @@ class consumer():
                 price_bet = min(grads[good_ID] * self.coins_for_util, self.cash-30)
                 if price_bet < 0:
                     continue
-                if self.spent_today + price_bet > (2 * self.job[1] if self.job is not None else self.cash / 10):
+                if self.spent_today + price_bet > (2 * self.job[1] if self.job is not None else self.cash / 5):
                     continue
                 ans.append((good_ID, price_bet, 1))
         return ans
@@ -236,9 +240,41 @@ class consumer():
     def request_job_offer(self): # RETURN THE DESIRED SALARY, 0 if not interested
         # THIS IS A GAME-PLAY FUNCTION
         # baseline -> excellent
-        if self.job is not None and self.salary_expectation / self.job[1] < 1.1: # if already employed, search for the job if your salary expectation
-            return 0                            # is significantly higher than your current job salary
+        # if already employed, search for the job if your salary expectation is significantly higher than your current job salary
+        if self.job is not None and self.salary_expectation / self.job[1] < 1.1: 
+            return 0
         return self.salary_expectation
+
+    def get_fired(self):
+        self.job = None
+
+    def get_hired(self, employer, salary): # details in the labor market
+        self.job = (employer, salary) # tuple of employer (class producer) and salary
+
+    def earn_dividends(self, payment):
+        self.cash += payment
+        self.dividends += payment
+
+    def consume_goods(self): # for now we consume everything at once
+        to_consume = {}
+        for good_ID, amount in self.stored_goods.items():
+            consumed, rest = self.goods[good_ID].consume(amount)
+            self.stored_goods[good_ID] = rest
+            to_consume[good_ID] = consumed
+        self.util_level = self.util(to_consume)
+    
+    def depreciate_goods(self):
+        for good_ID, amount in self.stored_goods.items():
+            self.stored_goods[good_ID] = self.goods[good_ID].depreciate(amount)
+
+    def calc_coins_for_util(self):
+        # actual to ideal spending ratio
+        okay_to_spend = min(self.job[1], self.cash / 10) if self.job is not None else self.cash / 20
+        ratio = (okay_to_spend + 30) / (self.spent_today + 30)
+        # make it a bit more conservative (tends to the mean)
+        ratio = ratio * 1/3 + 2/3
+        # big ratio -> we should have bigger util value
+        self.coins_for_util *= ratio
 
     def calc_salary_expectation(self):
         market_salary = self.census_.stats['salary_skill_ratio'] * self.skill
@@ -253,34 +289,20 @@ class consumer():
                 self.salary_expectation *= (0.95 + 0.1 * r())
             else: # you are supposed to earn more according to the market survey!
                 self.salary_expectation *= update_coef * (0.95 + 0.1 * r())
-
-    def get_fired(self):
-        self.job = None
-
-    def get_hired(self, employer, salary): # details in the labor market
-        self.job = (employer, salary) # tuple of employer (class producer) and salary
     
-    def market_asset_evaluation(self):
-        total = 0
-        price_dict = self.census_.stats['goods_market_prices'][self.census_.time]
-        for good_ID, num in self.stored_goods.items():
-            price = max(price_dict[good_ID][0], 0)
-            total += price * num
-        return total
-
-    def earn_dividends(self, payment):
-        self.cash += payment
-        self.dividends += payment
+    def reflect_day(self):
+        self.calc_coins_for_util()
+        self.calc_salary_expectation()
     
     def make_log(self): # logging
         return {
             'cons_ID': self.ID,
             'cash': self.cash,
-            'no-cash assets value': self.market_asset_evaluation(),
+            'no-cash assets value': self.census_.g_market.asset_market_evaluation(self.stored_goods),
             'salary': self.job[1] if self.job is not None else 0,
             'dividends': self.dividends,
             'spending': self.spent_today,
-            'utility': self.util(self.stored_goods),
+            'utility': self.util_level,
             'skill': self.skill,
             'time': self.census_.time
         }
@@ -288,11 +310,10 @@ class consumer():
 
 class producer():
 
-    def __init__(self, ID, start_cap, good_ID, fixed_cost, productivity, components, owner, stocks, goods):
+    def __init__(self, ID, start_cap, good_ID, productivity, components, owner, stocks, goods):
         self.ID = ID # company ID
         self.good_ID = good_ID # the good ID the company is producing
         self.goods = goods
-        self.fixed_cost = fixed_cost # the fixed cost; STUPID ASS IMIPLEMENTATION GOTTA CHANGE IT
         self.productivity = productivity # function that maps # of hours to the number of units produced
         self.stored_goods = {} # stored goods
         for good_ID in self.goods:
@@ -304,8 +325,8 @@ class producer():
         self.ownership = {owner.ID: (owner, stocks)}
         self.total_skill = 1
         self.revenue = 0
-        self.units_sold = 0
-        self.units_bet = 0
+        self.units_sold = 0 # units sold in the round
+        self.units_bet = 0 # units offered for sale in the round
         self.salaries_paid = 0
         self.dividends_paid = 0
         self.asset_spending = 0
@@ -318,14 +339,11 @@ class producer():
     
     def reset_day(self): # reset all the day-to-day variables
         self.revenue = 0
+        self.units_sold = 0
+        self.units_bet = 0
         self.salaries_paid = 0
         self.dividends_paid = 0
         self.asset_spending = 0
-        self.units_sold = 0
-
-    def depreciate_goods(self):
-        for good_ID in self.stored_goods:
-            self.stored_goods[good_ID] = self.goods[good_ID].depreciate(self.stored_goods[good_ID])
 
     def make_production_plan(self): # RETURNS THE NUMBER OF UNITS WE WISH TO PRODUCE; for now -> max value possible
         # THIS IS A GAME-PLAY FUNCTION
@@ -344,7 +362,6 @@ class producer():
         return True
 
     def produce_good(self): # produce the amount of goods suggested in the production plan
-        self.cash -= self.fixed_cost
         num_units = self.make_production_plan()
         if not self.check_production_plan(num_units):
             return
@@ -359,6 +376,7 @@ class producer():
             self.cash -= salary
             emp.earn_salary()
             self.salaries_paid += salary
+        assert abs(self.salaries_paid - self.total_salary) < 0.01 # this means our hiring process is fine
 
     def request_good_offer(self): # refer to consumer class function
         # THIS IS A GAME-PLAY FUNCTION
@@ -372,8 +390,10 @@ class producer():
         for good_ID, need in self.components.items():
             price = old_prices[good_ID][0] # this is market price
             must_have = front_prod * need
-            must_have_after_depr = must_have
-            quant = int(must_have_after_depr - self.stored_goods[good_ID] + 1 - 0.001)
+            must_have_after = must_have
+            while self.goods[good_ID].depreciate(must_have_after + 1) < must_have: # as the good would get depreciate, keep that in mind!
+                must_have_after += 1
+            quant = int(must_have_after - self.stored_goods[good_ID] + 1 - 0.001)
             if quant <= 0:
                 continue
             needed_quant[good_ID] = (quant, price)
@@ -382,8 +402,10 @@ class producer():
         total_revenue = prod_price * front_prod
         for good_ID, (quant, price) in needed_quant.items():
             rest_total = total_price - quant * price
-            rest_for_comp = max(total_revenue - rest_total, 10)
-            rest_for_comp *= 0.9 + 0.2 * r()
+            rest_for_comp = total_revenue - rest_total
+            if rest_for_comp < 0:
+                continue
+            rest_for_comp *= 0.95 + 0.1 * r()
             upd_price = rest_for_comp / quant
             ans.append((good_ID, upd_price, quant))
         return ans
@@ -401,11 +423,13 @@ class producer():
         # baseline -> excellent
         price = self.price_exp
         quant = int(self.stored_goods[self.good_ID])
-        if quant > self.productivity(self.total_skill):
-            quant = int((self.stored_goods[self.good_ID] + self.productivity(self.total_skill)) / 2)
+        if quant > self.productivity(self.total_skill): # do not just dump all your stored goods in the market
+            quant = int(self.stored_goods[self.good_ID] * 1/5 + self.productivity(self.total_skill) * 4/5)
         self.units_bet = quant
         fifth = quant // 5
         mid = quant - fifth * 4
+        if fifth == 0:
+            return [(self.good_ID, price, quant)]
         return [(self.good_ID, price * 0.96, fifth), (self.good_ID, price * 0.98, fifth), (self.good_ID, price, mid),
                 (self.good_ID, price * 1.02, fifth), (self.good_ID, price * 1.04, fifth)] if quant > 0 else []
 
@@ -425,20 +449,6 @@ class producer():
         self.stored_goods[good_ID] -= quant
         self.revenue += quant * price
         self.units_sold += quant
-    
-    def calc_price_exp(self):
-        # actual to ideal spending ratio
-        ratio = (self.units_sold + 1) / (self.units_bet + 1)
-        # make it a bit more conservative (tends to the mean)
-        ratio = ratio * 1/5 + 4/5
-        if ratio > 0.95 and self.units_sold != 0: # sold out -> increase price
-            ratio += 0.1
-        if self.units_bet == 0: # we did not even produce anything -> increase price expectation to boost production incentive
-            ratio += 0.2
-        if self.units_sold == 0 and self.units_bet != 0: # we did not sell anything -> drop prices
-            ratio -= 0.1
-        # big ratio -> bigger price, small ratio -> smaller price
-        self.price_exp *= (0.95 + 0.1 * r()) * ratio
 
     def staff_strategy(self): # fire some employees, request employees on the labor market; return [(skill, salary), ...]
         # THIS IS A GAME-PLAY FUNCTION
@@ -456,14 +466,13 @@ class producer():
         for emp_ID, (emp, salary) in list(self.employees.items()):
             prod_drop = old_prod - self.productivity(self.total_skill - emp.skill)
             marginal_value = prod_drop * gross # how much this employee contributes
-            if marginal_value < salary: # we lose money on this employee! Fire them!
+            if marginal_value < salary * 0.9: # we lose too much money on this employee! Fire them!
                 self.fire_employee(emp_ID)
         # hire new employees
         for i in range(1, 10):
             new_prod = self.productivity(self.total_skill + i)
             prod_change = new_prod - old_prod
-            coef = 0.95 + r() * 0.1
-            salary = prod_change * gross * coef
+            salary = prod_change * gross
             if salary > 0:
                 ans.append((i, salary))
         return ans
@@ -476,53 +485,66 @@ class producer():
 
     def fire_employee(self, emp_ID):
         employee, salary = self.employees.pop(emp_ID)
-        employee.get_fired()
         self.total_skill -= employee.skill
         self.total_salary -= salary
-    
-    def market_asset_evaluation(self): # calculates market value of all the non-cash assets
-        total = 0
-        price_dict = self.census_.stats['goods_market_prices'][self.census_.time]
-        for good_ID, num in self.stored_goods.items():
-            price = max(price_dict[good_ID][0], 0)
-            total += price * num
-        return total
+        employee.get_fired()
     
     def dividend_policy(self):
-        income = self.revenue - self.fixed_cost - self.salaries_paid - self.asset_spending
+        income = self.revenue - self.salaries_paid - self.asset_spending
         return max(income / 2, 0)
 
     def pay_dividends(self):
         div = self.dividend_policy()
+        self.cash -= div
+        self.dividends_paid = div
         for cons_ID, (cons, stocks) in self.ownership.items():
             payment = stocks / self.stocks * div
-            self.cash -= payment
-            self.dividends_paid += payment
             cons.earn_dividends(payment)
 
-    def make_log(self): # logging
-        return {
-            'prod_ID': self.ID,
-            'good ID': self.good_ID,
-            'revenue': self.revenue,
-            'fixed cost': self.fixed_cost,
-            'salaries paid': self.salaries_paid,
-            'assets spending': self.asset_spending,
-            'income': self.revenue - self.fixed_cost - self.salaries_paid - self.asset_spending,
-            'dividends': self.dividends_paid,
-            'retained': self.revenue - self.fixed_cost - self.salaries_paid - self.asset_spending - self.dividends_paid,
-            'no-cash assets value': self.market_asset_evaluation(),
-            'cash': self.cash,
-            'units sold': self.units_sold,
-            'time': self.census_.time
-        }
+    def depreciate_goods(self):
+        for good_ID in self.stored_goods:
+            self.stored_goods[good_ID] = self.goods[good_ID].depreciate(self.stored_goods[good_ID])
+
+    def calc_price_exp(self):
+        # actual to ideal spending ratio
+        ratio = (self.units_sold + 1) / (self.units_bet + 1)
+        # make it a bit more conservative (tends to the mean)
+        ratio = ratio * 1/5 + 4/5
+        if ratio > 0.98 and self.units_sold != 0: # sold out -> increase price
+            ratio += 0.05
+        if self.units_bet == 0: # we did not even produce anything -> increase price expectation to boost production incentive
+            ratio += 0.1
+        if self.units_sold == 0 and self.units_bet != 0: # we did not sell anything -> drop prices
+            ratio -= 0.05
+        # big ratio -> bigger price, small ratio -> smaller price
+        self.price_exp *=  ratio
     
+    def reflect_day(self):
+        self.calc_price_exp()
+
     def bankrupt(self):
         if self.cash < 0:
             for emp_ID in list(self.employees.keys()):
                 self.fire_employee(emp_ID)
             return True
         return False
+
+    def make_log(self): # logging
+        return {
+            'prod_ID': self.ID,
+            'good ID': self.good_ID,
+            'revenue': self.revenue,
+            'salaries paid': self.salaries_paid,
+            'assets spending': self.asset_spending,
+            'income': self.revenue - self.salaries_paid - self.asset_spending,
+            'dividends': self.dividends_paid,
+            'retained': self.revenue - self.salaries_paid - self.asset_spending - self.dividends_paid,
+            'no-cash assets value': self.census_.g_market.asset_market_evaluation(self.stored_goods),
+            'cash': self.cash,
+            'units sold': self.units_sold,
+            'price exp': self.price_exp,
+            'time': self.census_.time
+        }
 
 
 class census(): # meant to easily calculate any metrics for the market (to start with, salary expectation)
@@ -546,8 +568,12 @@ class census(): # meant to easily calculate any metrics for the market (to start
     def __str__(self):
         return '-' * 10 + '\nCensus print out:\n' + '\n'.join([key + ':\n' + str(val) 
                                                                for key, val in self.stats.items()]) + '\nTime: ' + str(self.time) + '\n' + '-' * 10
+    
+    def reset_day(self, time):
+        self.time = time
+        self.file.write('DAY ' + str(time) + ' STARTED\n')
 
-    def salary_skill_ratio(self): # calculate salary / skill ratio of the current market
+    def calc_salary_skill_ratio(self): # calculate salary / skill ratio of the current market
         tot_sal = 30
         tot_skill = 1
         for cons_id, cons in self.consumers.items():
@@ -556,10 +582,8 @@ class census(): # meant to easily calculate any metrics for the market (to start
                 tot_skill += cons.skill
         self.stats['salary_skill_ratio'] = tot_sal / tot_skill
     
-    def reset_day(self, time):
-        self.salary_skill_ratio()
-        self.time = time
-        self.file.write('DAY ' + str(time) + ' STARTED\n')
+    def reflect_day(self):
+        self.calc_salary_skill_ratio
 
 
 class simulation():
@@ -581,7 +605,7 @@ class simulation():
     def start_simulation(self): # some needed initializations before we start the simulation
         # creating dummy consumer and producer
         bob = consumer(-1, lambda x: 0, 0, 0, self.goods)
-        tesla = producer(-1, 0, 'bruh', 0, lambda x: 0, {}, bob, 10, self.goods)
+        tesla = producer(-1, 0, 'bruh', lambda x: 0, {}, bob, 10, self.goods)
         bob.census_ = self.census_
         tesla.census_ = self.census_
         # generating day zero fake data
@@ -610,12 +634,14 @@ class simulation():
         self.trade_labor()
         # step five - pay dividends and trade stocks (to be implemented)
         self.trade_stocks()
-        # step six - save logging
-        self.logging()
-        # step seven - goods depreciation
-        self.depreciate()
-        # step eight - bankruptcy
+        # step six - goods consumption and depreciation
+        self.consume_depreciate()
+        # step seven - reflect on the current day
+        self.reflect_day()
+        # step eight - bankruptcy (and registration of new companies -> later)
         self.bankruptcy()
+        # step nine - save logging
+        self.logging()
     
     def reset_day(self, time): # step one
         for cons_ID, cons in self.consumers.items():
@@ -626,22 +652,18 @@ class simulation():
         self.g_market.reset_day()
         self.census_.reset_day(time)
     
-    def produce(self): # step three
+    def produce(self): # step two
         for prod_ID, prod in self.producers.items():
             prod.produce_good()
             prod.pay_salary()
     
-    def trade_goods(self): # step four
+    def trade_goods(self): # step three
         for prod_ID, prod in self.producers.items():
             self.g_market.add_offer_sell(prod.create_good_offer(), prod)
         self.g_market.sort_offers()
         self.g_market.run_day()
-        for cons_ID, cons in self.consumers.items(): # maybe move to a different phase???
-            cons.calc_coins_for_util() # update the util to coins weights
-        for prod_ID, prod in self.producers.items():
-            prod.calc_price_exp()
     
-    def trade_labor(self): # step five
+    def trade_labor(self): # step four
         for prod_ID, prod in self.producers.items(): # producers go first so that fired consumers would have a chance to find a new job
             for skill, salary in prod.staff_strategy():
                 self.l_market.add_giver(prod, skill, salary)
@@ -650,34 +672,36 @@ class simulation():
             if bet == 0: # not interested
                 continue
             self.l_market.add_taker(cons, bet)
-        for cons_ID, cons in self.consumers.items():
-            cons.calc_salary_expectation()
         self.l_market.run_day()
     
-    def trade_stocks(self): # step six -> later would add actual stock trades
+    def trade_stocks(self): # step five -> later would add actual stock trades
         for prod_ID, prod in self.producers.items():
             prod.pay_dividends()
 
-    def logging(self): # step seven
-        # goods market logging must happen before others
+    def consume_depreciate(self): # step six
+        for cons_ID, cons in self.consumers.items():
+            cons.consume_goods()
+            cons.depreciate_goods()
+        for prod_ID, prod in self.producers.items():
+            prod.depreciate_goods()
+        
+    def reflect_day(self): # step seven
+        self.census_.reflect_day() # should go first
+        self.g_market.reflect_day()
+        for cons_ID, cons in self.consumers.items():
+            cons.reflect_day()
+        for prod_ID, prod in self.producers.items():
+            prod.reflect_day()
+
+    def bankruptcy(self): # step eight -> to add liquidation of the company later
+        for prod_ID, prod in list(self.producers.items()):
+            if prod.bankrupt():
+                self.producers.pop(prod_ID)
+
+    def logging(self): # step nine
         self.df_gmarket = pd.concat([self.df_gmarket, pd.DataFrame(self.g_market.make_log())])
         for cons_ID, cons in self.consumers.items():
             self.df_cons = pd.concat([self.df_cons, pd.DataFrame.from_dict(cons.make_log(), orient='index').T])
         for prod_ID, prod in self.producers.items():
             self.df_prod = pd.concat([self.df_prod, pd.DataFrame.from_dict(prod.make_log(), orient='index').T])
-    
-    def depreciate(self): # step two
-        for cons_ID, cons in self.consumers.items():
-            cons.depreciate_goods()
-        for prod_ID, prod in self.producers.items():
-            #prod.depreciate_goods()
-            pass
-    
-    def bankruptcy(self): # step eight
-        bankrupts = []
-        for prod_ID, prod in self.producers.items():
-            if prod.bankrupt():
-                bankrupts.append(prod_ID)
-        for prod_ID in bankrupts:
-            self.producers.pop(prod_ID)
             
