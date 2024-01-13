@@ -5,33 +5,33 @@ class good():
 
     def __init__(self, ID, depreciation, consumption):
         self.ID = ID # ID of a good
-        self.depreciation = depreciation # depreciates goods over time
-        self.consumption = consumption
+        self.depr_rate = depreciation # depreciation rate
+        self.cons_rate = consumption # consumption rate
 
     def depreciate(self, quant):
-        return self.depreciation(quant)
+        eps = 0.000001
+        return max(0, quant - self.depr_rate * int(quant + 1 - eps)) # calculate # of goods, depreciate each of them
 
     def consume(self, quant):
-        return self.consumption(quant)
+        eps = 0.000001
+        return max(0, quant - self.cons_rate * int(quant + 1 - eps)) # calculate # of goods, consume each of them
 
 
 class goods_market():
 
-    def __init__(self, goods, consumers, producers):
+    def __init__(self):
         self.name = 'goods' # name of a market: "goods", "labor", "real estate", "stock exchange" etc
-        self.goods = goods
-        self.consumers = consumers
-        self.producers = producers
+        self.goods = None
+        self.consumers = None
+        self.producers = None
         self.spread = {} # stores sell offers: {good_ID: [(price, quantity, seller), ...]}
         self.trans_arch = {} # archieve of statistics of daily transactions: {time: {good_ID: (avg, std, min_price, max_price, items sold)}}
         self.trans_today = {} # transactions that happen today
-        for good_ID in self.goods: # DO NOT TOUCH THIS, it is needed to correctly start the simulation (look start_simulation)
-            self.trans_today[good_ID] = []
         self.census_ = None # census object is connected when census_ is initialized
     
     def __str__(self):
         return '-' * 10 + '\nGoods market print out:\n' + '\n'.join([key + ':\n' + str(val) for key, val in self.make_log().items()]) + '\n' + '-' * 10
-    
+
     def fake_data(self): # generate fake data for day 0
         for good_ID in self.goods:
             avg_price = 100 * r() + 10
@@ -133,13 +133,12 @@ class goods_market():
             'time': self.census_.time
         } for good_ID, prices in stat.items()]
 
-
 class labor_market():
 
-    def __init__(self, consumers, producers):
+    def __init__(self):
         self.name = 'labor' # name of a market: "goods", "labor", "real estate", "stock exchange" etc
-        self.consumers = consumers
-        self.producers = producers
+        self.consumers = None
+        self.producers = None
         self.census_ = None # census object is connected when census_ is initialized
 
     def reset_day(self):
@@ -175,14 +174,12 @@ class labor_market():
 
 class consumer():
     
-    def __init__(self, ID, util, cash, skill, goods):
+    def __init__(self, ID, util, cash, skill):
         self.ID = ID # ID of a consumer
-        self.goods = goods
+        self.goods = None
         self.util = util # {good_ID : #} -> utils (a function that takes dict of goods utility)
         self.cash = cash # cash assets
         self.stored_goods = {}
-        for name in self.goods:
-            self.stored_goods[name] = 0
         self.skill = skill # skill (relevant for the job); later would make it a vector instead to represent different skills
         self.job = None # the job position of the type optional (employer, salary)
         self.spent_today = 0
@@ -255,13 +252,10 @@ class consumer():
         self.cash += payment
         self.dividends += payment
 
-    def consume_goods(self): # for now we consume everything at once
-        to_consume = {}
+    def consume_goods(self): # consume all the goods
+        self.util_level = self.util(self.stored_goods)
         for good_ID, amount in self.stored_goods.items():
-            consumed, rest = self.goods[good_ID].consume(amount)
-            self.stored_goods[good_ID] = rest
-            to_consume[good_ID] = consumed
-        self.util_level = self.util(to_consume)
+            self.stored_goods[good_ID] = self.goods[good_ID].consume(amount)
     
     def depreciate_goods(self):
         for good_ID, amount in self.stored_goods.items():
@@ -310,14 +304,12 @@ class consumer():
 
 class producer():
 
-    def __init__(self, ID, start_cap, good_ID, productivity, components, owner, stocks, goods):
+    def __init__(self, ID, start_cap, good_ID, productivity, components, owner, stocks):
         self.ID = ID # company ID
         self.good_ID = good_ID # the good ID the company is producing
-        self.goods = goods
+        self.goods = None
         self.productivity = productivity # function that maps # of hours to the number of units produced
         self.stored_goods = {} # stored goods
-        for good_ID in self.goods:
-            self.stored_goods[good_ID] = 0
         self.cash = start_cap # the starting capital of the company
         self.components = components # {good_ID: #} -> number of each good needed to produce one unit of the desired good
         self.employees = {} # {consumer_ID: (consumer, salary)}
@@ -368,7 +360,9 @@ class producer():
         for good_ID in self.components:
             comp = self.components[good_ID]
             needed_comp = comp * num_units
-            self.stored_goods[good_ID] -= needed_comp
+            needed_comp_after_prod = self.goods[good_ID].consume(needed_comp)
+            delta = needed_comp - needed_comp_after_prod
+            self.stored_goods[good_ID] -= delta
         self.stored_goods[self.good_ID] += num_units
 
     def pay_salary(self): # pay salary to all current employees
@@ -381,6 +375,7 @@ class producer():
     def request_good_offer(self): # refer to consumer class function
         # THIS IS A GAME-PLAY FUNCTION
         # baseline -> excellent
+        eps = 0.000001
         ans = []
         prod_price = self.price_exp
         front_prod = self.productivity(self.total_skill)
@@ -393,7 +388,7 @@ class producer():
             must_have_after = must_have
             while self.goods[good_ID].depreciate(must_have_after + 1) < must_have: # as the good would get depreciate, keep that in mind!
                 must_have_after += 1
-            quant = int(must_have_after - self.stored_goods[good_ID] + 1 - 0.001)
+            quant = int(must_have_after - self.stored_goods[good_ID] + 1 - eps)
             if quant <= 0:
                 continue
             needed_quant[good_ID] = (quant, price)
@@ -469,7 +464,7 @@ class producer():
             if marginal_value < salary * 0.9: # we lose too much money on this employee! Fire them!
                 self.fire_employee(emp_ID)
         # hire new employees
-        for i in range(1, 10):
+        for i in sample(range(1, 10), 3):
             new_prod = self.productivity(self.total_skill + i)
             prod_change = new_prod - old_prod
             salary = prod_change * gross
@@ -502,8 +497,8 @@ class producer():
             cons.earn_dividends(payment)
 
     def depreciate_goods(self):
-        for good_ID in self.stored_goods:
-            self.stored_goods[good_ID] = self.goods[good_ID].depreciate(self.stored_goods[good_ID])
+        for good_ID, amount in self.stored_goods.items():
+            self.stored_goods[good_ID] = self.goods[good_ID].depreciate(amount)
 
     def calc_price_exp(self):
         # actual to ideal spending ratio
@@ -560,10 +555,23 @@ class census(): # meant to easily calculate any metrics for the market (to start
         # connect census_ to other objects
         for cons_ID, cons in consumers.items():
             cons.census_ = self
+            cons.goods = goods
         for prod_ID, prod in producers.items():
             prod.census_ = self
+            prod.goods = goods
         g_market.census_ = self
+        g_market.goods = goods
+        g_market.consumers = consumers
+        g_market.producers = producers
         l_market.census_ = self
+        l_market.consumers = consumers
+        l_market.producers = producers
+        for good_ID in goods: # it is needed to correctly start the simulation (look start_simulation)
+            g_market.trans_today[good_ID] = []
+            for cons_ID, cons in consumers.items():
+                cons.stored_goods[good_ID] = 0
+            for prod_ID, prod in producers.items():
+                prod.stored_goods[good_ID] = 0
 
     def __str__(self):
         return '-' * 10 + '\nCensus print out:\n' + '\n'.join([key + ':\n' + str(val) 
@@ -604,10 +612,8 @@ class simulation():
 
     def start_simulation(self): # some needed initializations before we start the simulation
         # creating dummy consumer and producer
-        bob = consumer(-1, lambda x: 0, 0, 0, self.goods)
-        tesla = producer(-1, 0, 'bruh', lambda x: 0, {}, bob, 10, self.goods)
-        bob.census_ = self.census_
-        tesla.census_ = self.census_
+        bob = self.consumers[0]
+        tesla = self.producers[0]
         # generating day zero fake data
         self.g_market.fake_data()
         # creating dataframes for logging
