@@ -34,5 +34,83 @@ def sim_set_up_1():
         30
     )
 
+def sim_set_up_2():
+
+    # here 'horse' is addictive: the more you have it, the more you want it
+    # We should expect the market to pivot towards art production
+
+    sim_set_up(
+        [(good_consumable, 'apple'),
+         (good_permanent, 'horse')],
+
+        [(100, consumer_mixed_utility, {'apple': (1, 'lin'), 'horse': (0.5, 'quad')})],
+
+        [(10, producer_sqrt_productivity, 'apple', 10, {}, None),
+          (10, producer_sqrt_productivity, 'horse', 10, {}, None)],
+
+        30
+    )
+
+def sim_set_up_3():
+
+    # we have only one company producing each good -> expect huge profits and poor population
+
+    sim_set_up(
+        [(good_consumable, 'apple'),
+         (good_permanent, 'art')],
+
+        [(100, consumer_linear_utility, {'apple': 1, 'art': 1})],
+
+        [(1, producer_sqrt_productivity, 'apple', 5, {}, None),
+         (1, producer_sqrt_productivity, 'art', 5, {}, None)],
+
+        30
+    )
+
+def sim_set_up_4():
+
+    # stress testing: huge volumes
+
+    sim_set_up(
+        [(good_consumable, 'apple'),
+         (good_consumable, 'pear'),
+         (good_consumable, 'bread'),
+         (good_permanent, 'art'),
+         (good_permanent, 'car')],
+
+        [(250, consumer_mixed_utility, {'apple': (1, 'lin'), 'pear': (3, 'quad'), 'bread': (2, 'sqrt'), 'art': (1, 'lin')}),
+         (250, consumer_mixed_utility, {'apple': (4, 'quad'), 'pear': (2, 'lin'), 'bread': (3, 'lin'), 'art': (4, 'lin')}),
+         (200, consumer_mixed_utility, {'apple': (2, 'sqrt'), 'pear': (5, 'lin'), 'bread': (1, 'quad')})], # check if dict is not full
+
+        [(30, producer_sqrt_productivity, 'apple', 3, {}, None),
+         (20, producer_sqrt_productivity, 'pear', 2, {'apple': 1}, None),
+         (15, producer_sqrt_productivity, 'bread', 4, {}, None),
+         (20, producer_sqrt_productivity, 'art', 5, {'apple': 1, 'pear': 2}, None),
+         (5, producer_sqrt_productivity, 'car', 4, {}, None)],
+
+        100
+    )
+
+def sim_set_up_5():
+
+    # simplest case -> one good only, many companies. Expect stable economical system
+
+    sim_set_up(
+        [(good_consumable, 'apple')],
+
+        [(100, consumer_linear_utility, {'apple': 3})],
+
+        [(10, producer_sqrt_productivity, 'apple', 3, {}, None)],
+
+        50
+    )
+
+
+
+# goods_list: [(good_type, good_name)]
+# cons_list: [(num, cons_type, cons_pref)]
+# prod_list: [num, prod_type, prod_good_ID, prod_coef, prod_comp, prod_owner]
+# rounds: int (this is number of rounds in the simulation)
+
 if __name__ == '__main__':
-    sim_set_up_1() # choose the simulation to run here
+    sim_set_up_5() # choose the simulation to run here
