@@ -1,6 +1,7 @@
 import pandas as pd
 from random import random as r, sample, shuffle
 
+
 class good():
 
     def __init__(self, ID, depreciation, consumption):
@@ -27,6 +28,7 @@ class goods_market():
         self.spread = {} # stores sell offers: {good_ID: [(price, quantity, seller), ...]}
         self.trans_arch = {} # archieve of statistics of daily transactions: {time: {good_ID: (avg, std, min_price, max_price, items sold)}}
         self.trans_today = {} # transactions that happen today
+        self.offered_today = {}
         self.census_ = None # census object is connected when census_ is initialized
     
     def __str__(self):
@@ -36,19 +38,22 @@ class goods_market():
         for good_ID in self.goods:
             avg_price = 100 * r() + 10
             self.trans_today[good_ID] = [(5, avg_price)]
+            self.offered_today[good_ID] = 7
         self.calc_stat()
 
     def reset_day(self): # reset all the day-to-day variables
         self.spread = {}
-        for name in self.goods:
-            self.spread[name] = [[10**9, 0, None]] # list of sell offers, add the "barrier" offer that noone would ever take
-            self.trans_today[name] = []
+        for good_ID in self.goods:
+            self.spread[good_ID] = [[10**9, 0, None]] # list of sell offers, add the "barrier" offer that noone would ever take
+            self.trans_today[good_ID] = []
+            self.offered_today[good_ID] = 0
 
     def add_offer_sell(self, offers, seller): # add the offer to the spread
         if not seller.verify_good_seller(offers): # if not valid offer list -> do not add it
             return
         for good_ID, price, quant in offers:
             self.spread[good_ID].append([price, quant, seller])
+            self.offered_today[good_ID] += quant
 
     def sort_offers(self):
         for good_ID, cur_spread in self.spread.items():
@@ -130,8 +135,10 @@ class goods_market():
             'min price': prices[2],
             'max price': prices[3],
             'items sold': prices[4],
+            'items offered': self.offered_today[good_ID],
             'time': self.census_.time
         } for good_ID, prices in stat.items()]
+
 
 class labor_market():
 
@@ -139,17 +146,29 @@ class labor_market():
         self.name = 'labor' # name of a market: "goods", "labor", "real estate", "stock exchange" etc
         self.consumers = None
         self.producers = None
+        self.candidates = 0 # needed for logging
+        self.positions = 0
+        self.hired = 0
+        self.tot_sal = 0
+        self.tot_skill = 0
         self.census_ = None # census object is connected when census_ is initialized
 
     def reset_day(self):
         self.job_takers = set() # future employees
         self.job_givers = set() # future employers
+        self.candidates = 0
+        self.positions = 0
+        self.hired = 0
+        self.tot_sal = 0
+        self.tot_skill = 0
 
     def add_taker(self, cons, salary):
         self.job_takers.add((cons.skill, salary, cons.ID))
+        self.candidates += 1
 
     def add_giver(self, prod, skill, salary):
         self.job_givers.add((skill, salary, prod.ID))
+        self.positions += 1
 
     def run_day(self): # run the whole hiring cycle, FOR NOW EXTREMELY INEFFICIENT O(n^2), IDK HOW TO IMPROVE IT LOL
         self.census_.file.write('Started the day of trades (labor)!\n')
@@ -160,8 +179,11 @@ class labor_market():
         for job_taker in self.job_takers:
             for job_giver in self.job_givers:
                 if job_taker[0] >= job_giver[0] and job_taker[1] <= job_giver[1]: # skillful enough and not too expensive -> hire
+                    self.hired += 1
                     self.job_givers.remove(job_giver)
                     salary = (job_taker[1] + job_giver[1]) / 2
+                    self.tot_sal += salary
+                    self.tot_skill += job_taker[0]
                     employee = self.consumers[job_taker[2]]
                     employer = self.producers[job_giver[2]]
                     if employee.job is not None:
@@ -170,6 +192,16 @@ class labor_market():
                     self.census_.file.write(' '.join(map(str, ['Got a match (employer_ID, employee_ID, salary):', employer.ID, employee.ID, salary])) + '\n')
                     employer.hire_employee(employee, salary)
                     break
+    
+    def make_log(self):
+        return {
+            'candidates': self.candidates,
+            'positions': self.positions,
+            'hired': self.hired,
+            'avg hired salary': self.tot_sal / self.hired if self.hired > 0 else -1,
+            'avg hired skill': self.tot_skill / self.hired if self.hired > 0 else -1,
+            'time': self.census_.time
+        }
 
 
 class consumer():
@@ -217,11 +249,12 @@ class consumer():
         grads = self.util_grad()
         ans = []
         for good_ID in grads:
+            adj_coef = min(0.2 + self.goods[good_ID].depr_rate + self.goods[good_ID].cons_rate, 1) # adjust for good durability
             if grads[good_ID] > 0:
-                price_bet = min(grads[good_ID] * self.coins_for_util, self.cash-30)
+                price_bet = min(grads[good_ID] * self.coins_for_util / adj_coef, self.cash-30)
                 if price_bet < 0:
                     continue
-                if self.spent_today + price_bet > (2 * self.job[1] if self.job is not None else self.cash / 5):
+                if self.spent_today > (2 * self.job[1] if self.job is not None else self.cash / 5):
                     continue
                 ans.append((good_ID, price_bet, 1))
         return ans
@@ -238,7 +271,7 @@ class consumer():
         # THIS IS A GAME-PLAY FUNCTION
         # baseline -> excellent
         # if already employed, search for the job if your salary expectation is significantly higher than your current job salary
-        if self.job is not None and self.salary_expectation / self.job[1] < 1.1: 
+        if self.job is not None and self.salary_expectation / self.job[1] < 1.2: 
             return 0
         return self.salary_expectation
 
@@ -263,7 +296,7 @@ class consumer():
 
     def calc_coins_for_util(self):
         # actual to ideal spending ratio
-        okay_to_spend = min(self.job[1], self.cash / 10) if self.job is not None else self.cash / 20
+        okay_to_spend = min(self.job[1], self.cash / 10) if self.job is not None else self.cash / 10
         ratio = (okay_to_spend + 30) / (self.spent_today + 30)
         # make it a bit more conservative (tends to the mean)
         ratio = ratio * 1/3 + 2/3
@@ -537,6 +570,7 @@ class producer():
             'no-cash assets value': self.census_.g_market.asset_market_evaluation(self.stored_goods),
             'cash': self.cash,
             'units sold': self.units_sold,
+            'units offered': self.units_bet,
             'price exp': self.price_exp,
             'time': self.census_.time
         }
@@ -618,6 +652,7 @@ class simulation():
         self.g_market.fake_data()
         # creating dataframes for logging
         self.df_gmarket = pd.DataFrame(columns=list(self.g_market.make_log()[0].keys()))
+        self.df_lmarket = pd.DataFrame(columns=list(self.l_market.make_log().keys()))
         self.df_cons = pd.DataFrame(columns=list(bob.make_log().keys()))
         self.df_prod = pd.DataFrame(columns=list(tesla.make_log().keys()))
         # create a file for the redundant output
@@ -627,6 +662,7 @@ class simulation():
         self.df_cons.to_csv('consumers.csv', index=False, float_format='%.2f')
         self.df_prod.to_csv('producers.csv', index=False, float_format='%.2f')
         self.df_gmarket.to_csv('goods_market.csv', index=False, float_format='%.2f')
+        self.df_lmarket.to_csv('labor_market.csv', index=False, float_format='%.2f')
         self.census_.file.close()
     
     def run_cycle(self, time): # run one cycle of the simulation
@@ -706,6 +742,7 @@ class simulation():
 
     def logging(self): # step nine
         self.df_gmarket = pd.concat([self.df_gmarket, pd.DataFrame(self.g_market.make_log())])
+        self.df_lmarket = pd.concat([self.df_lmarket, pd.DataFrame.from_dict(self.l_market.make_log(), orient='index').T])
         for cons_ID, cons in self.consumers.items():
             self.df_cons = pd.concat([self.df_cons, pd.DataFrame.from_dict(cons.make_log(), orient='index').T])
         for prod_ID, prod in self.producers.items():

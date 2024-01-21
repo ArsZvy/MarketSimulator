@@ -1,5 +1,4 @@
 from AgentExamples import *
-from SimSetUp import sim_set_up
 
 def sim_set_up_1():
 
@@ -23,8 +22,8 @@ def sim_set_up_1():
         (good_permanent, 'art'),
         (good_consumable, 'pear')],
 
-        [(50, consumer_linear_utility, {'apple': 1+0.1*r(), 'pear': 1+0.1*r()}),
-        (50, consumer_mixed_utility, {'apple': (1+0.1*r(), 'lin'), 'pear': (1+0.1*r(), 'lin'), 'art': (3+0.1*r(), 'sqrt')})],
+        [(50, consumer_linear_utility, {'apple': 1, 'pear': 1}),
+        (50, consumer_mixed_utility, {'apple': (1, 'lin'), 'pear': (1, 'lin'), 'art': (3, 'sqrt')})],
 
 
         [(10, producer_sqrt_productivity, 'apple', 7, {}, None),
@@ -36,17 +35,17 @@ def sim_set_up_1():
 
 def sim_set_up_2():
 
-    # here 'horse' is addictive: the more you have it, the more you want it
+    # here 'art' is addictive: the more you have it, the more you want it
     # We should expect the market to pivot towards art production
 
     sim_set_up(
         [(good_consumable, 'apple'),
-         (good_permanent, 'horse')],
+         (good_consumable, 'art')],
 
-        [(100, consumer_mixed_utility, {'apple': (1, 'lin'), 'horse': (0.5, 'quad')})],
+        [(100, consumer_mixed_utility, {'apple': (1, 'lin'), 'art': (1.0, 'quad')})],
 
         [(10, producer_sqrt_productivity, 'apple', 10, {}, None),
-          (10, producer_sqrt_productivity, 'horse', 10, {}, None)],
+          (10, producer_sqrt_productivity, 'art', 10, {}, None)],
 
         30
     )
@@ -64,10 +63,10 @@ def sim_set_up_3():
         [(1, producer_sqrt_productivity, 'apple', 5, {}, None),
          (1, producer_sqrt_productivity, 'art', 5, {}, None)],
 
-        30
+        50
     )
 
-def sim_set_up_4():
+def sim_set_up_4(): # takes about 2 mins on my local machine
 
     # stress testing: huge volumes
 
@@ -113,4 +112,4 @@ def sim_set_up_5():
 # rounds: int (this is number of rounds in the simulation)
 
 if __name__ == '__main__':
-    sim_set_up_5() # choose the simulation to run here
+    sim_set_up_1() # choose the simulation to run here
