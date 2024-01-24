@@ -2,7 +2,7 @@
 This project is initiated, designed, and implemented by AZ (Arseniy Zvyagintsev).
 
 ## Motivation
-This project aims to create a fictional world populated with consumers, producers, markets, governments, banks, and so on, that would simulate real-world economic scenarios in order to improve education in economics. I believe that for STEM-inclined people, such an approach to studying economics would be more effective compared to a classical textbook/lecture-based approach.
+This project aims to create a fictional world populated with consumers, producers, markets, governments, banks, and so on, that would simulate real-world economic scenarios in order 1) to improve education and 2) test game theory applications in economics. I believe that for STEM-inclined / game theory students, such an approach to studying economics would be more effective compared to a classical textbook/lecture-based approach.
 
 ## Description
 Let's analyze agents of the simulation one by one:
@@ -52,8 +52,8 @@ The simulation includes consumers, producers, the goods market, and the labor ma
 ### Milestone 2 -> Released January 21st
 Strategies are improved. Goods functionality is extended to the point where all the "unusual" goods (like land, capital, or licenses) can be easily specified. Added additional statistics in the logging process and the labor market csv table. Created a user-friendly pipeline that allows users to set up simulations and visualizations. Five simulations and two visualizations are set up as important examples for potential users.
 
-### Milestone 3 -> ETA - March 1st
-Agents' strategies are diversified (under a prof guidance hopefully). The code is refactored to be completely reliable, easy-to-follow and easy-to-modify. International trade is added (for now, within one currency)
+### Milestone 3 -> ETA - End of Spring semester
+Agents' strategies are diversified and fine-tuned (under Prof Neugeboren guidance, hopefully, as a part of HCRP program). The code is refactored to be completely reliable, easy-to-follow and easy-to-modify. International trade is added (for now, within one currency)
 
 ### Milestone 4 (complete Microeconomics 101) -> Ever
 The simulation gets a government (no central bank for now), government expenditure, taxes, externalities, and goods with the risk of market failure. The government has a sub-optimal strategy to prevent market failures and account for externalities.
