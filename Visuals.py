@@ -30,32 +30,32 @@ class Visual():
     # GOODS MARKET STATS
 
     def plot_good_price(self, good_ID):
-        plt.plot(self.df_gm[self.df_gm['good ID'] == good_ID]['time'], self.df_gm[self.df_gm['good ID'] == good_ID]['avg price'])
+        plt.plot(self.df_gm[self.df_gm['good_ID'] == good_ID]['time'], self.df_gm[self.df_gm['good_ID'] == good_ID]['avg_price_wtax'])
         plt.title(good_ID + ' price')
 
     def plot_tot_market_cap(self, arg=None):
         cap_by_good = pd.DataFrame(self.df_gm['time'], columns=['time'])
-        cap_by_good['cap'] = self.df_gm['avg price'] * self.df_gm['items sold']
+        cap_by_good['cap'] = self.df_gm['avg_price_wtax'] * self.df_gm['items_sold']
         tot_cap = cap_by_good.groupby(by='time').sum().reset_index()
         plt.plot(tot_cap['time'], tot_cap['cap'])
         plt.title('Total market cap')
 
     def plot_good_market_cap(self, good_ID):
-        good_df = self.df_gm[self.df_gm['good ID'] == good_ID]
-        plt.plot(good_df['time'], good_df['items sold'] * good_df['avg price'])
+        good_df = self.df_gm[self.df_gm['good_ID'] == good_ID]
+        plt.plot(good_df['time'], good_df['items_sold'] * good_df['avg_price_wtax'])
         plt.title(good_ID + ' market cap')
 
     def plot_good_items_sold(self, good_ID):
-        plt.plot(self.df_gm[self.df_gm['good ID'] == good_ID]['time'], self.df_gm[self.df_gm['good ID'] == good_ID]['items sold'])
+        plt.plot(self.df_gm[self.df_gm['good_ID'] == good_ID]['time'], self.df_gm[self.df_gm['good_ID'] == good_ID]['items_sold'])
         plt.title(good_ID + ' sold')
     
     def plot_good_items_offered(self, good_ID):
-        plt.plot(self.df_gm[self.df_gm['good ID'] == good_ID]['time'], self.df_gm[self.df_gm['good ID'] == good_ID]['items offered'])
+        plt.plot(self.df_gm[self.df_gm['good_ID'] == good_ID]['time'], self.df_gm[self.df_gm['good_ID'] == good_ID]['items_offered'])
         plt.title(good_ID + ' offered')
     
     def plot_good_items_sold_share(self, good_ID):
-        df_good = self.df_gm[self.df_gm['good ID'] == good_ID]
-        plt.plot(df_good['time'], (df_good['items sold']+1) / (df_good['items offered']+1))
+        df_good = self.df_gm[self.df_gm['good_ID'] == good_ID]
+        plt.plot(df_good['time'], (df_good['items_sold']+1) / (df_good['items_offered']+1))
         plt.title(good_ID + ' share sold')
 
     # LABOR MARKET STATS
@@ -69,7 +69,7 @@ class Visual():
         plt.title('Share Hired')
     
     def plot_hired_salary_skill_ratio(self, arg=None):
-        plt.plot(self.df_lm['time'], self.df_lm['avg hired salary'] / self.df_lm['avg hired skill'])
+        plt.plot(self.df_lm['time'], self.df_lm['avg_hired_salary'] / self.df_lm['avg_hired_skill'])
         plt.title('Current salary to skill ratio')
 
     # CONSUMERS STATS

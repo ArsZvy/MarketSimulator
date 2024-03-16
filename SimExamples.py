@@ -18,9 +18,9 @@ def sim_set_up_1():
     # 0 people -> 7.5 arts, 1 people -> 18.5 arts, 2 people -> 26 arts
 
     sim_set_up(
-        [(good_consumable, 'apple'),
-        (good_permanent, 'art'),
-        (good_consumable, 'pear')],
+        [(good_consumable, 'apple', True),
+        (good_permanent, 'art', True),
+        (good_consumable, 'pear', False)],
 
         [(50, consumer_linear_utility, {'apple': 1, 'pear': 1}),
         (50, consumer_mixed_utility, {'apple': (1, 'lin'), 'pear': (1, 'lin'), 'art': (3, 'sqrt')})],
@@ -29,6 +29,8 @@ def sim_set_up_1():
         [(10, producer_sqrt_productivity, 'apple', 7, {}, None),
         (10, producer_sqrt_productivity, 'art', 4, {'apple': 1.0}, None),
         (10, producer_sqrt_productivity, 'pear', 7, {}, None)],
+
+        government_flat_taxation(0.1, 0.1, {'apple': 0.05, 'art': 0.07, 'pear': 0.15}, 250),
 
         30
     )
@@ -39,13 +41,15 @@ def sim_set_up_2():
     # We should expect the market to pivot towards art production
 
     sim_set_up(
-        [(good_consumable, 'apple'),
-         (good_consumable, 'art')],
+        [(good_consumable, 'apple', True),
+         (good_consumable, 'art', True)],
 
         [(100, consumer_mixed_utility, {'apple': (1, 'lin'), 'art': (1.0, 'quad')})],
 
         [(10, producer_sqrt_productivity, 'apple', 10, {}, None),
           (10, producer_sqrt_productivity, 'art', 10, {}, None)],
+
+        government_flat_taxation(0.1, 0.1, {'apple': 0.05, 'art': 0.07}, 250),
 
         30
     )
@@ -55,13 +59,15 @@ def sim_set_up_3():
     # we have only one company producing each good -> expect huge profits and poor population
 
     sim_set_up(
-        [(good_consumable, 'apple'),
-         (good_permanent, 'art')],
+        [(good_consumable, 'apple', False),
+         (good_permanent, 'art', True)],
 
         [(100, consumer_linear_utility, {'apple': 1, 'art': 1})],
 
         [(1, producer_sqrt_productivity, 'apple', 5, {}, None),
          (1, producer_sqrt_productivity, 'art', 5, {}, None)],
+
+        government_flat_taxation(0.1, 0.1, {'apple': 0.05, 'art': 0.07}, 250),
 
         50
     )
@@ -71,11 +77,11 @@ def sim_set_up_4(): # takes about 2 mins on my local machine
     # stress testing: huge volumes
 
     sim_set_up(
-        [(good_consumable, 'apple'),
-         (good_consumable, 'pear'),
-         (good_consumable, 'bread'),
-         (good_permanent, 'art'),
-         (good_permanent, 'car')],
+        [(good_consumable, 'apple', True),
+         (good_consumable, 'pear', True),
+         (good_consumable, 'bread', True),
+         (good_permanent, 'art', False),
+         (good_permanent, 'car', True)],
 
         [(250, consumer_mixed_utility, {'apple': (1, 'lin'), 'pear': (3, 'quad'), 'bread': (2, 'sqrt'), 'art': (1, 'lin')}),
          (250, consumer_mixed_utility, {'apple': (4, 'quad'), 'pear': (2, 'lin'), 'bread': (3, 'lin'), 'art': (4, 'lin')}),
@@ -86,6 +92,8 @@ def sim_set_up_4(): # takes about 2 mins on my local machine
          (15, producer_sqrt_productivity, 'bread', 4, {}, None),
          (20, producer_sqrt_productivity, 'art', 5, {'apple': 1, 'pear': 2}, None),
          (5, producer_sqrt_productivity, 'car', 4, {}, None)],
+        
+        government_flat_taxation(0.1, 0.1, {'apple': 0.05, 'pear': 0.07, 'bread': 0.03, 'art': 0.08, 'car': 0.12}, 250),
 
         100
     )
@@ -95,11 +103,13 @@ def sim_set_up_5():
     # simplest case -> one good only, many companies. Expect stable economical system
 
     sim_set_up(
-        [(good_consumable, 'apple')],
+        [(good_consumable, 'apple', True)],
 
         [(100, consumer_linear_utility, {'apple': 3})],
 
         [(10, producer_sqrt_productivity, 'apple', 3, {}, None)],
+
+        government_flat_taxation(0.1, 0.1, {'apple': 0.05}, 250),
 
         50
     )

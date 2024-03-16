@@ -27,4 +27,4 @@ def visual_set_up_2():
     ])
 
 if __name__ == '__main__':
-    visual_set_up_2()
+    visual_set_up_1()
