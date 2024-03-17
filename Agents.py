@@ -773,16 +773,16 @@ class producer():
         # big ratio -> bigger price, small ratio -> smaller price
         self.price_exp *=  ratio
     
-    def reflect_day(self):
-        self.calc_price_exp()
-        self.calc_net_unit_price()
-
     def bankrupt(self):
         if self.cash < 0:
             for emp_ID in list(self.employees.keys()):
                 self.fire_employee(emp_ID)
             return True
         return False
+
+    def reflect_day(self):
+        self.calc_price_exp()
+        self.calc_net_unit_price()
 
     def make_log(self): # logging
         return {
@@ -976,6 +976,9 @@ class bank():
     def bankrupt(self):
         return (self.cash < 0)
 
+    def reflect_day(self):
+        pass
+
     def make_log(self): # logging
         return {
             'cash': self.cash,
@@ -1105,10 +1108,10 @@ class simulation():
         self.pay_take_loans()
         # step seven - goods consumption and depreciation
         self.consume_depreciate()
-        # step eight - reflect on the current day
-        self.reflect_day()
-        # step nine - bankruptcy (and registration of new companies -> later)
+        # step eight - bankruptcy (and registration of new companies -> later)
         self.bankruptcy()
+        # step nine - reflect on the current day
+        self.reflect_day()
         # step ten - save logging
         self.logging()
     
@@ -1173,6 +1176,14 @@ class simulation():
         self.gov.consume_goods()
         self.gov.depreciate_goods()
         
+    def bankruptcy(self): # step nine -> to add liquidation of the company later
+        for prod_ID, prod in list(self.producers.items()):
+            if prod.bankrupt():
+                self.producers.pop(prod_ID)
+        for bank_ID, bank in list(self.banks.items()):
+            if bank.bankrupt():
+                self.banks.pop(bank_ID)
+    
     def reflect_day(self): # step eight
         self.census_.reflect_day() # should go first
         self.g_market.reflect_day()
@@ -1183,14 +1194,8 @@ class simulation():
             cons.reflect_day()
         for prod_ID, prod in self.producers.items():
             prod.reflect_day()
-
-    def bankruptcy(self): # step nine -> to add liquidation of the company later
-        for prod_ID, prod in list(self.producers.items()):
-            if prod.bankrupt():
-                self.producers.pop(prod_ID)
-        for bank_ID, bank in list(self.banks.items()):
-            if bank.bankrupt():
-                self.banks.pop(bank_ID)
+        for bank_ID, bank in self.banks.items():
+            bank.reflect_day()
 
     def logging(self): # step ten
         self.df_gmarket = pd.concat([self.df_gmarket, pd.DataFrame(self.g_market.make_log())])
