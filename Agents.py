@@ -500,13 +500,13 @@ class consumer():
         return {
             'cons_ID': self.ID,
             'cash': self.cash,
-            'no-cash assets value': self.census_.g_market.asset_market_evaluation(self.stored_goods),
+            'no-cash_assets_value': self.census_.g_market.asset_market_evaluation(self.stored_goods),
             'salary': self.job[1] if self.job is not None else 0,
             'dividends': self.dividends,
             'spending': self.spent_today,
             'utility': self.util_level,
             'public_utility': self.util_level_public,
-            'total utility': self.util_level + self.util_level_public,
+            'total_utility': self.util_level + self.util_level_public,
             'skill': self.skill,
             'time': self.census_.time
         }
@@ -787,18 +787,18 @@ class producer():
     def make_log(self): # logging
         return {
             'prod_ID': self.ID,
-            'good ID': self.good_ID,
+            'good_ID': self.good_ID,
             'revenue': self.revenue,
-            'salaries paid': self.salaries_paid,
-            'assets spending': self.asset_spending,
+            'salaries_paid': self.salaries_paid,
+            'assets_spending': self.asset_spending,
             'income': self.revenue - self.salaries_paid - self.asset_spending,
             'dividends': self.dividends_paid,
             'retained': self.revenue - self.salaries_paid - self.asset_spending - self.dividends_paid,
-            'no-cash assets value': self.census_.g_market.asset_market_evaluation(self.stored_goods),
+            'no-cash_assets_value': self.census_.g_market.asset_market_evaluation(self.stored_goods),
             'cash': self.cash,
-            'units sold': self.units_sold,
-            'units offered': self.units_bet,
-            'price exp': self.price_exp,
+            'units_sold': self.units_sold,
+            'units_offered': self.units_bet,
+            'price_exp': self.price_exp,
             'time': self.census_.time
         }
     
@@ -1004,34 +1004,22 @@ class census(): # meant to easily calculate any metrics for the market (to start
                       'loans_market_stats': debt_market.stats,
                       'labor_market_stats': l_market.stats}
         self.time = 0
-        # connect census_ to other objects
-        for cons_ID, cons in consumers.items():
-            cons.census_ = self
-            cons.goods = goods
-            cons.gov = gov
-        for prod_ID, prod in producers.items():
-            prod.census_ = self
-            prod.goods = goods
-            prod.gov = gov
-        for bank_ID, bank in banks.items():
-            bank.census_ = self
-            bank.gov = gov
-        g_market.census_ = self
-        g_market.goods = goods
-        g_market.consumers = consumers
-        g_market.producers = producers
-        g_market.gov = gov
-        l_market.census_ = self
-        l_market.consumers = consumers
-        l_market.producers = producers
-        debt_market.census_ = self
-        debt_market.banks = banks
-        gov.census_ = self
-        gov.goods = goods
-        gov.consumers = consumers
-        gov.producers = producers
-        gov.g_market = g_market
-        gov.l_market = l_market
+        # connecting agents together
+        for agent_class in (consumers, producers, banks):
+            for _, agent in agent_class.items():
+                agent.census_ = self
+                agent.goods = goods
+                agent.consumers = consumers
+                agent.producers = producers
+                agent.banks = banks
+                agent.gov = gov
+        for agent in (g_market, l_market, debt_market, gov):
+            agent.census_ = self
+            agent.goods = goods
+            agent.consumers = consumers
+            agent.producers = producers
+            agent.banks = banks
+            agent.gov = gov
         for good_ID in goods: # it is needed to correctly start the simulation (look start_simulation)
             g_market.trans_today[good_ID] = []
             if goods[good_ID].type:

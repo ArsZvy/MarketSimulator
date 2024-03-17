@@ -94,13 +94,13 @@ class Visual():
     # PRODUCERS STATS
     
     def plot_price_expectation(self, good_ID):
-        good_df = self.df_prod[self.df_prod['good ID'] == good_ID]
-        price_exp = good_df.groupby('time')['price exp'].mean().reset_index()
-        plt.plot(price_exp['time'], price_exp['price exp'])
+        good_df = self.df_prod[self.df_prod['good_ID'] == good_ID]
+        price_exp = good_df.groupby('time')['price_exp'].mean().reset_index()
+        plt.plot(price_exp['time'], price_exp['price_exp'])
         plt.title(good_ID + ' price expectation')
     
     def plot_mean_income(self, good_ID):
-        good_df = self.df_prod[self.df_prod['good ID'] == good_ID]
+        good_df = self.df_prod[self.df_prod['good_ID'] == good_ID]
         income = good_df.groupby('time')['income'].mean().reset_index()
         plt.plot(income['time'], income['income'])
         plt.title(good_ID + ' mean income')
